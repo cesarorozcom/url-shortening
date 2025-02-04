@@ -51,4 +51,6 @@ GET /shorten/abc123/stats
 
 * Python 3.9.6
 * Flask 3.1.10
-* SQLite 3.36.0
+* SQLAlchemy 2.0.37
+
+This project is a solution for https://roadmap.sh/projects/url-shortening-service challenge.

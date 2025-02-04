@@ -59,44 +59,60 @@ def shorten():
 
         return response, 200
 
-@app.route('/shorten/<short_code>', methods=['GET'])
+@app.route('/shorten/<short_code>', methods=['GET', 'DELETE'])
 def get_url(short_code: str):
+    
+    print(request.method)
 
     with engine.connect() as connection:
-        select_stmt = select(shorten_url_table).\
-            where(shorten_url_table.c.short_code == short_code)
 
-        
-        row = connection.execute(select_stmt).first()
-
-        if not row:
-            return jsonify({'error': 'URL not found'}), 404
-
-        shorten_obj = connection.execute(select(shorten_url_table).where(shorten_url_table.c.short_code == short_code)).first()
-
-        id = shorten_obj.id
-
-        shorten_stats_count = connection.execute(select(shorten_url_table_stats).\
-                                           where(shorten_url_table_stats.c.shorten_url_id == id)).first()
-        if not shorten_stats_count:
-            insert_statement = insert(shorten_url_table_stats).values(
-                shorten_url_id=id,
-                access_count=1
-            )
-            connection.execute(insert_statement)
+        if request.method == 'DELETE':
+            delete_stmt = delete(shorten_url_table).where(shorten_url_table.c.short_code == short_code)
+            connection.execute(delete_stmt)
             connection.commit()
+            return jsonify({'message': 'URL deleted'}), 200
         else:
-            update_statement = update(shorten_url_table_stats).\
-                where(shorten_url_table_stats.c.shorten_url_id == id).\
-                    values(access_count=shorten_stats_count.access_count+1)
-            connection.execute(update_statement)
-            connection.commit()
-        """
-        select_statement = select(shorten_url_table,
-                                  shorten_url_table_stats).\
-            join(shorten_url_table_stats, shorten_url_table.c.id==shorten_url_table_stats.c.shorten_url_id).\
+            select_stmt = select(shorten_url_table).\
                 where(shorten_url_table.c.short_code == short_code)
-        """
+
+            
+            row = connection.execute(select_stmt).first()
+
+            if not row:
+                return jsonify({'error': 'URL not found'}), 404
+
+            shorten_obj = connection.execute(select(shorten_url_table).where(shorten_url_table.c.short_code == short_code)).first()
+
+            id = shorten_obj.id
+
+            shorten_stats_count = connection.execute(select(shorten_url_table_stats).\
+                                            where(shorten_url_table_stats.c.shorten_url_id == id)).first()
+            if not shorten_stats_count:
+                insert_statement = insert(shorten_url_table_stats).values(
+                    shorten_url_id=id,
+                    access_count=1
+                )
+                connection.execute(insert_statement)
+                connection.commit()
+            else:
+                update_statement = update(shorten_url_table_stats).\
+                    where(shorten_url_table_stats.c.shorten_url_id == id).\
+                        values(access_count=shorten_stats_count.access_count+1)
+                connection.execute(update_statement)
+                connection.commit()
+            
+            select_stmt = select(shorten_url_table).\
+                    where(shorten_url_table.c.short_code == short_code)
+            
+            shorten_object = connection.execute(select_stmt).first()
+
+            response = shorten_object._asdict()
+        
+            return response, 200
+
+@app.route('/shorten/{short_code}/stats', methods=['GET'])
+def get_stats(short_code: str):
+    with engine.connect() as connection:
         select_stmt = text("""
             SELECT u.id,
                 u.url,
@@ -105,14 +121,14 @@ def get_url(short_code: str):
                 u.updated_at,
                 s.access_count
             FROM shorten_urls u
-            JOIN shorten_url_stats s ON u.id = s.shorten_url_id;
+            JOIN shorten_url_stats s ON u.id = s.shorten_url_id
+            WHERE u.short_code = :short_code;
 
-            """)
+            """).bindparams(short_code=short_code)
         shorten_object = connection.execute(select_stmt).first()
 
         response = shorten_object._asdict()
-        
-
+    
         return response, 200
 
 if __name__ == '__main__':
